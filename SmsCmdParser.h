@@ -3,9 +3,9 @@
 #include <Arduino.h>
 
 //Результаты парсинга
-#define PARS_CMD_NOT_FOUND      -1  //Команда не найдена
-#define PARS_NOT_ENOUGH_DATA    0   //Не достаточно данных пришло
-#define PARS_OK                 1   //ОК
+#define PARSE_CMD_NOT_FOUND      -1  //Команда не найдена
+#define PARSE_NOT_ENOUGH_DATA    0   //Не достаточно данных пришло
+#define PARSE_OK                 1   //ОК
 
 //-----------------------------------------------------------------------------------------------------
 //  Класс для парсинга СМС команд типа <command_name><spases...><data1><spases...><data2>... Пример: "Min2 10.5"
