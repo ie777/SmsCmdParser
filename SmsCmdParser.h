@@ -18,11 +18,11 @@ public:
     pdata = data;
   }
   ~SmsCmdParser() {
-    bufClear();
+    memClear();
   }
     
   //Освободить буфер - вызывать после окончания парсинга, либо сам вызовется в деструкторе при выходе из цикла
-  void bufClear() {
+  void memClear() {
     for ( int i = 0; i < qtyBlock; i++ )   //Освободить внешний буфер
       if ( pstr[i] ) free(pstr[i]);
     if (pstr) { 
@@ -43,6 +43,7 @@ public:
     char* p2block = 0;
     bool f_endPars = 0; //флаг завршения парсинга на этом блоке
 
+    if (pstr) memClear(); //Освободить память если идет повторный парсинг
     pstr = (char**)calloc(amData, sizeof(char*));   // создаём буфер указателей на наши подстроки
     
     char *p = findCmd(cmd);
@@ -55,6 +56,9 @@ public:
       switch (state) {
         case 0:    //Данные еще не начались
           while (p[i] == ' ')  i++; //Пропустить все пробелы перед данными
+
+          p2block = p + i; // запоминаем текущий указатель на блок данных 
+          
           // проверка на конец строки и неформат
           if ( !isValid( p[i] ) ) { 
             f_endPars = 1;
@@ -62,34 +66,30 @@ public:
             break;
           }
           // теперь идут валидные данные
-          state = 1;
-          break;
-
-        case 1:     //Данные начались
-          p2block = p + i; // запоминаем текущий указатель на блок данных 
           amount++;       //Считаем блоки данных
           i++;
-          state = 2;
+          state = 1;
           break;
         
-        case 2: //Далее перебираем данные 
+        case 1: //Далее перебираем данные 
           // если попался пробел, значит блок нормально завершен
           if ( p[i] == ' ' ) {     
-            state = 3; 
+            state = 2; 
             break;
           } else
           // Если конец строки и неформат
           if ( !isValid( p[i] ) ) {     // закончилась строка - это конец парсинга
             f_endPars = 1;
-            state = 3; 
+            state = 2; 
             break;
           }
           i++; 
           break;
 
-        case 3: //Завершение блока
+        case 2: //Завершение блока
           szBlock = p+i - p2block;           // вычисляем размер блока
-          pstr[j++] = cpyToExtBuf( p2block, szBlock ); //Копируем и сохраняем ук. на внешний буфер
+          if (szBlock)  //Если данных не найдено, то не копируем ничего
+            pstr[j++] = cpyToExtBuf( p2block, szBlock ); //Копируем и сохраняем ук. на внешний буфер
 
           qtyBlock = amount;  //Сохраняем количество блоков данных
 
@@ -131,6 +131,8 @@ public:
   char* cpyToExtBuf( char* pToData, int qty ) {
       int i = 0;
       
+      if (qty == 0) return 0;  //Если размер нулевой, ночего не копировать
+
       extBuf = (char*)calloc( qty + sizeof(char), sizeof(char) );      // создаём буфер под этот размер       
       while (1) {
           if (i >= qty) break;
@@ -166,7 +168,50 @@ public:
   bool equals(int num, const char* comp) {
       return !strcmp(pstr[num], comp);
   }
-      
+
+  //Парсер для float переменных
+  int parseFloat(int idx, float *pval, float minLim = NAN, float maxLim = NAN) {
+    float val = getFloat(idx); //Промежуточная переменная
+    
+    if (!isnan(minLim)) //Если указано
+      if (val < minLim)  //Проверка на соответствие
+        return 0; //Проверка не пройдена
+        
+    if (!isnan(maxLim)) //Если указано
+      if (val > maxLim)  //Проверка на соответствие
+        return 0; //Проверка не пройдена
+    
+    *pval = val; //Присвоить внешней переменной
+    return 1; //Проверка пройдена
+  }
+
+  //Парсер для целочисленных переменных
+  int parseInt(int idx, int* pval, int minLim, int maxLim) {
+    int val =  getInt(idx); //Промежуточная переменная
+
+    if (val < minLim)  //Проверка на соответствие
+      return 0; //Проверка не пройдена
+
+    if (val > maxLim)  //Проверка на соответствие
+      return 0; //Проверка не пройдена
+    
+    *pval = val; //Присвоить внешней переменной
+    return 1; 
+  }
+
+  //Парсер для текстовых полей (пример: "Garage")
+  void parseText(int idx, char* buf, int maxLen = 64) {
+    int i = 0; char ch;
+    while (1) {
+      if (i >= maxLen) break;
+      ch = pstr[idx][i]; 
+      if (!ch) break; //Пока не придет конец строки
+      buf[i++] = ch;  //Копировать в буфер
+    }
+    buf[i] = '\0';
+  }
+
+
   const char* pdata = NULL; // указатель на входную строку
   char* extBuf = NULL;  //Указатель на буфер для хранения блоков данных
   char** pstr = NULL; //Массив указателей на начала блоков данных во входной строке. 
