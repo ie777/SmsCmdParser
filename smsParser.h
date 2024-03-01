@@ -124,8 +124,6 @@ public:
   //Копировать блок данных из входной строки по указателю pToData во внешний буфер extBuf
   //количеством qty
   char* cpyToExtBuf( char* pToData, int qty ) {
-      Serial5.print("size:    ");Serial5.println(qty);
-      Serial5.print("sizeofExt: ");Serial5.println( qty * sizeof(char) );
       int i = 0;
       
       extBuf = (char*)calloc( qty + sizeof(char), sizeof(char) );      // создаём буфер под этот размер       
