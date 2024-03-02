@@ -18,11 +18,11 @@ public:
     pdata = data;
   }
   ~SmsCmdParser() {
-    memClear();
+    clear();
   }
     
   //Освободить буфер - вызывать после окончания парсинга, либо сам вызовется в деструкторе при выходе из цикла
-  void memClear() {
+  void clear() {
     for ( int i = 0; i < qtyBlock; i++ )   //Освободить внешний буфер
       if ( pstr[i] ) free(pstr[i]);
     if (pstr) { 
@@ -43,7 +43,7 @@ public:
     char* p2block = 0;
     bool f_endPars = 0; //флаг завршения парсинга на этом блоке
 
-    if (pstr) memClear(); //Освободить память если идет повторный парсинг
+    if (pstr) clear(); //Освободить память если идет повторный парсинг
     pstr = (char**)calloc(amData, sizeof(char*));   // создаём буфер указателей на наши подстроки
     
     char *p = findCmd(cmd);
@@ -170,8 +170,8 @@ public:
   }
 
   //Парсер для float переменных
-  int parseFloat(int idx, float *pval, float minLim = NAN, float maxLim = NAN) {
-    float val = getFloat(idx); //Промежуточная переменная
+  int parseFloat(int num, float *pval, float minLim = NAN, float maxLim = NAN) {
+    float val = getFloat(num); //Промежуточная переменная
     
     if (!isnan(minLim)) //Если указано
       if (val < minLim)  //Проверка на соответствие
@@ -186,8 +186,8 @@ public:
   }
 
   //Парсер для целочисленных переменных
-  int parseInt(int idx, int* pval, int minLim, int maxLim) {
-    int val =  getInt(idx); //Промежуточная переменная
+  int parseInt(int num, int* pval, int minLim, int maxLim) {
+    int val =  getInt(num); //Промежуточная переменная
 
     if (val < minLim)  //Проверка на соответствие
       return 0; //Проверка не пройдена
@@ -200,11 +200,11 @@ public:
   }
 
   //Парсер для текстовых полей (пример: "Garage")
-  void parseText(int idx, char* buf, int maxLen = 64) {
+  void parseText(int num, char* buf, int maxLen = 64) {
     int i = 0; char ch;
     while (1) {
       if (i >= maxLen) break;
-      ch = pstr[idx][i]; 
+      ch = pstr[num][i]; 
       if (!ch) break; //Пока не придет конец строки
       buf[i++] = ch;  //Копировать в буфер
     }
