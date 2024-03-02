@@ -3,9 +3,10 @@
 #include <Arduino.h>
 
 //Результаты парсинга
-#define PARSE_CMD_NOT_FOUND      -1  //Команда не найдена
-#define PARSE_NOT_ENOUGH_DATA    0   //Не достаточно данных пришло
-#define PARSE_OK                 1   //ОК
+#define PARSE_CMD_NOT_FOUND       -1  //Команда не найдена
+#define PARSE_NOT_ENOUGH_DATA     0   //Не достаточно данных пришло
+#define PARSE_OK                  1   //ОК
+#define PARSE_INVALID_DATA        -2  //Данные не соответствуют заданным условиям
 
 //-----------------------------------------------------------------------------------------------------
 //  Класс для парсинга СМС команд типа <command_name><spases...><data1><spases...><data2>... Пример: "Min2 10.5"
@@ -87,7 +88,7 @@ public:
           break;
 
         case 2: //Завершение блока
-          szBlock = p+i - p2block;           // вычисляем размер блока
+          szBlock = (p+i - p2block) / sizeof(char);           // вычисляем размер блока
           if (szBlock)  //Если данных не найдено, то не копируем ничего
             pstr[j++] = cpyToExtBuf( p2block, szBlock ); //Копируем и сохраняем ук. на внешний буфер
 
@@ -170,7 +171,7 @@ public:
   }
 
   //Парсер для float переменных
-  int parseFloat(int num, float *pval, float minLim = NAN, float maxLim = NAN) {
+  int checkFloat(int num, float *pval, float minLim = NAN, float maxLim = NAN) {
     float val = getFloat(num); //Промежуточная переменная
     
     if (!isnan(minLim)) //Если указано
@@ -186,7 +187,7 @@ public:
   }
 
   //Парсер для целочисленных переменных
-  int parseInt(int num, int* pval, int minLim, int maxLim) {
+  int checkInt(int num, int* pval, int minLim, int maxLim) {
     int val =  getInt(num); //Промежуточная переменная
 
     if (val < minLim)  //Проверка на соответствие
@@ -199,8 +200,45 @@ public:
     return 1; 
   }
 
+  //Полный цикл парсера команд типа [cmd][nom][spase][val], пример: "tmin1 12.5"
+  //Проверяет соответствие данных установленным тут же пределам 
+  int parse_cmd_nom_pval (const char* cmd, float* pval, size_t sizeVal,
+                          float VAL_MIN = NAN, float VAL_MAX = NAN,
+                          int NOM_MIN = 0, int NOM_MAX = 0xFFFF  
+                          ) 
+  {
+    int res = parseCmd(cmd, 2); //Парсим команду
+    if (res == PARSE_OK ) //Найдены все параметры 
+    {
+      int nom = 0; 
+      if (checkInt(0, &nom, NOM_MIN, NOM_MAX)) { //Проверяем номер
+        if (nom >= sizeVal/sizeof(pval[0]))  //Если индекс перевалил за количество членов массива
+          return PARSE_INVALID_DATA; 
+        if (checkFloat(1, &pval[nom], VAL_MIN, VAL_MAX))  //Если успешно, парсим переменную                      
+          return PARSE_OK;
+      } 
+      return PARSE_INVALID_DATA; //Данные не прошли проверку, введено не верно
+    }
+    return res; //Возвратить остальные ошибки
+  }
+
+  //Полный цикл парсера команд типа [cmd][spase][val], пример: "tmin 12.5"
+  //Проверяет соответствие данных установленным тут же пределам 
+  int parse_cmd_pval (const char* cmd, float* pval, 
+                    float VAL_MIN = NAN, float VAL_MAX = NAN) 
+  {
+    int res = parseCmd(cmd, 1); //Парсим команду
+    if (res == PARSE_OK ) //Найдены все параметры 
+    {
+      if (checkFloat(0, pval, VAL_MIN, VAL_MAX))  //Если успешно, парсим переменную                      
+          return PARSE_OK;
+      return PARSE_INVALID_DATA; //Данные не прошли проверку, введено не верно
+    }
+    return res; //Возвратить остальные ошибки
+  }
+
   //Парсер для текстовых полей (пример: "Garage")
-  void parseText(int num, char* buf, int maxLen = 64) {
+  void cpyText(int num, char* buf, int maxLen = 64) {
     int i = 0; char ch;
     while (1) {
       if (i >= maxLen) break;
@@ -210,7 +248,6 @@ public:
     }
     buf[i] = '\0';
   }
-
 
   const char* pdata = NULL; // указатель на входную строку
   char* extBuf = NULL;  //Указатель на буфер для хранения блоков данных
