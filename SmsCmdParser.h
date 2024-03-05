@@ -6,10 +6,12 @@
 #include <Arduino.h>
 
 //Результаты парсинга
-#define PARSE_CMD_NOT_FOUND       -1  //Команда не найдена
-#define PARSE_NOT_ENOUGH_DATA     0   //Не достаточно данных пришло
-#define PARSE_OK                  1   //ОК
-#define PARSE_INVALID_DATA        -2  //Данные не соответствуют заданным условиям
+enum paeseResult {
+  PARSE_INVALID_DATA  = -2,   // -2 - Данные не соответствуют заданным условиям
+  PARSE_CMD_NOT_FOUND,        // -1 - Команда не найдена
+  PARSE_NOT_ENOUGH_DATA,      // 0 - Не достаточно данных пришло
+  PARSE_OK                    // 1 - ОК
+};
 
 class SmsCmdParser {
 public:
@@ -36,18 +38,20 @@ public:
   //Возвращает: -1 - команда не найдена, 
   //            0 - команда найдена, но недостаточно блоков данных, 
   //            1 - команда найдена, блоков данных достаточно 
-  int parseCmd( const char* cmd, int amData ) {
+  int parsing ( const char* cmd, int amData = 0 ) {
     int i = 0, j = 0, amount = 0; 
     size_t szBlock;
     int state = 0;
     char* p2block = 0;
     bool f_endPars = 0; //флаг завршения парсинга на этом блоке
 
-    if (pstr) clear(); //Освободить память если идет повторный парсинг
+    char *p = findCmd(cmd);   //Ищем команду
+    if (p == 0 )      return  PARSE_CMD_NOT_FOUND;      //Не найдено 
+    if (amData == 0)  return  PARSE_OK;    //Если не задано количество, то считаем что успешно 
+      
+    if (pstr) clear();  //Освободить память если идет повторный парсинг
     pstr = (char**)calloc(amData, sizeof(char*));   // создаём буфер указателей на наши подстроки
-    
-    char *p = findCmd(cmd);
-    if (p == 0 )    return -1; //Не найдено 
+
     p += strlen(cmd); // следующий после заголовка 
     //Парсим по одному символу
     while ( 1 ) 
@@ -94,18 +98,18 @@ public:
           qtyBlock = amount;  //Сохраняем количество блоков данных
 
           if (f_endPars)  //Если пришел конец строки 
-            if ( amount < amData )  return 0;   //Данных недостаточно
-            else                    return 1;
+            if ( amount < amData )  return  PARSE_NOT_ENOUGH_DATA;   //Данных недостаточно
+            else                    return  PARSE_OK;
           else 
             if ( amount < amData ) {  //Данные еще не все 
               i++;
               state = 0; //В начало
               break; 
             }
-            else  return 1;  //Данные собраны
+            else  return PARSE_OK;  //Данные собраны
 
         default:  
-          return 0;
+          return PARSE_NOT_ENOUGH_DATA;
       }
     } 
   }
@@ -208,7 +212,7 @@ public:
                           int NOM_MIN = 0, int NOM_MAX = 0xFFFF  
                           ) 
   {
-    int res = parseCmd(cmd, 2); //Парсим команду
+    int res = parsing(cmd, 2); //Парсим команду
     if (res == PARSE_OK ) //Найдены все параметры 
     {
       int nom = 0; 
@@ -230,7 +234,7 @@ public:
   int parse_cmd_pval (const char* cmd, float* pval, 
                     float VAL_MIN = NAN, float VAL_MAX = NAN) 
   {
-    int res = parseCmd(cmd, 1); //Парсим команду
+    int res = parsing(cmd, 1); //Парсим команду
     if (res == PARSE_OK ) //Найдены все параметры 
     {
       if (checkFloat(0, pval, VAL_MIN, VAL_MAX))  //Если успешно, парсим переменную                      
@@ -241,13 +245,20 @@ public:
   }
 
   //--------------------------------------------------------------------------------
+  //Команда без аргументов, просто ищет команду
+  //--------------------------------------------------------------------------------
+  int parse_cmd (const char* cmd) {
+    return parsing(cmd);
+  }
+
+  //--------------------------------------------------------------------------------
   //Полный цикл парсера команд типа [cmd][spase][val], вариант для int, пример: "tmin 2" 
   //Проверяет соответствие данных установленным тут же пределам 
   //--------------------------------------------------------------------------------
   int parse_cmd_pval (const char* cmd, int* pval, 
                     float VAL_MIN = NAN, float VAL_MAX = NAN) 
   {
-    int res = parseCmd(cmd, 1); //Парсим команду
+    int res = parsing(cmd, 1); //Парсим команду
     if (res == PARSE_OK ) //Найдены все параметры 
     {
       if (checkInt(0, pval, VAL_MIN, VAL_MAX))  //Если успешно, парсим переменную                      
